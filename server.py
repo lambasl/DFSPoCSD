@@ -39,7 +39,7 @@ class SimpleHT:
     self.files = {}
     self.dirs = {}
     now = time()
-    self.files['/'] = dict(st_mode=(S_IFDIR | 0o755), st_ctime=now,
+    self.dirs['/'] = dict(st_mode=(S_IFDIR | 0o755), st_ctime=now,
                 st_mtime=now, st_atime=now, st_nlink=2, files_name=[])
 
 
@@ -49,35 +49,53 @@ class SimpleHT:
   # Retrieve something from the HT
   def get(self, key):
     # Default return value
-    rv = {}
+    print("in get")
+    rv = Binary(pickle.dumps({}))
     # If the key is in the data structure, return properly formatted results
     key1 = key.data
     if key1 in self.files:
-      rv = Binary(self.files[key1])
+      rv = Binary(pickle.dumps(self.files[key1]))
+    if key1 in self.dirs:
+      rv = Binary(pickle.dumps(self.dirs[key1]))
     return rv
 
-  # Insert something into the HT
+  #Insert something into the HT
   # def put(self, key, value, ttl):
   #   # Remove expired entries
-  #   metadata = value.data
-  #   print(metadata)
+  #   metadata = pickle.loads(value.data)
+  #   print(key.data, " hi ",metadata)
   #   if('files_name' in metadata):
-  #     self.dirs[key.data] = value.data
+  #     self.dirs[key.data] = metadata
   #   else:
-  #     self.files[key.data] = value.data
+  #     self.files[key.data] = metadata
   #   path_split = key.data.split('/')
   #   parent = "".join(path_split[:-2])
   #   filename = path_split[-1]
-  #   self.dirs[parent][files_name].append(filename)
-  #   print(self.dirs)
+  #   # self.dirs[parent][files_name].append(filename)
+  #   # print(self.dirs)
   #   print(self.files)
   #   return True
 
   # Insert something into the HT
   def put(self, key, value, ttl):
     # Remove expired entries
-    self.files[key.data] = value.data
-    print(self.files)
+    metadata = pickle.loads(value.data)
+    #self.files[key.data] = metadata
+    if('files_name' in metadata):
+      self.dirs[key.data] = metadata
+      print(self.dirs)
+    else:
+      self.files[key.data] = metadata
+      print(self.files)
+    path_split = ['/'] + key.data.split('/')[1:]
+    print(path_split)
+    parent = "".join(path_split[:-1])
+    print(parent)
+    filename = path_split[-1]
+    print(filename)
+    self.dirs[parent]["files_name"].append(filename)
+    print(self.dirs)
+    print("put success")
     return True
 
   # Load contents from a file

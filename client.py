@@ -74,10 +74,10 @@ def main():
 
   #Filesystem code
 
-  data = {'a':'a'}
+  data = {'a':'a', 'files_name':'d'}
  
-  helper.put("test", pickle.dumps(data), 10000)
-  if(pickle.loads(helper.get("test").data) == data):
+  helper.put("/hello.c", pickle.dumps(data), 10000)
+  if(pickle.loads(helper.get("/hello.c").data) == data):
     print("put was successsful")
   
 
