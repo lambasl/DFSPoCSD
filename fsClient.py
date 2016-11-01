@@ -71,9 +71,9 @@ class Memory(LoggingMixIn, Operations):
       return pickle.loads(self.ms_helper.getxattr(Binary(path), Binary(name)))
 
   def listxattr(self, path):
-      p = self.traverse(path)
-      attrs = p.get('attrs', {})
-      return attrs.keys()
+      
+      attrs_keys = pickle.loads(self.ms_helper.listxattr(Binary(path)))
+      return attrs_keys
 
   def mkdir(self, path, mode):
       
@@ -81,55 +81,51 @@ class Memory(LoggingMixIn, Operations):
       self.ms_helper.mkdir(Binary(path), Binary(str(mode)))
 
   def open(self, path, flags):
-      self.fd += 1
-      return self.fd
+      
+      return pickle.loads(self.ms_helper.open(Binary(path), Binary(str(flags))))
 
   def read(self, path, size, offset, fh):
-    print("read")
-    #   d = self.traverse(path, True)
-    #   #case: offset > filesize
-    #   if((offset//MaxBLOCKSIZE + 1) > len(d)):
-    #     return ''
+      print("read")
+      #   d = self.traverse(path, True)
+      #   #case: offset > filesize
+      #   if((offset//MaxBLOCKSIZE + 1) > len(d)):
+      #     return ''
 
-    #   #get first block where offset lies
-    #   b_no = offset // MaxBLOCKSIZE
-    #   data = ""
-    #   data = d[b_no]
-    #   # Case 1 : data is within one block
-    #   if(size < MaxBLOCKSIZE):
-    #     return data[offset%MaxBLOCKSIZE : offset%MaxBLOCKSIZE + size]
+      #   #get first block where offset lies
+      #   b_no = offset // MaxBLOCKSIZE
+      #   data = ""
+      #   data = d[b_no]
+      #   # Case 1 : data is within one block
+      #   if(size < MaxBLOCKSIZE):
+      #     return data[offset%MaxBLOCKSIZE : offset%MaxBLOCKSIZE + size]
 
-    #   # Case 2 : data spans over more than 1 block
-    #   else:
-    #     data = data[offset%MaxBLOCKSIZE :]
-    #     no_of_blocks = len(d)
-    #     if(b_no+size//MaxBLOCKSIZE < len(d)):
-    #       no_of_blocks = b_no+size//MaxBLOCKSIZE
-    #     for i in range(b_no+1, no_of_blocks):
-    #       data += d[i]
-    #     if(size - len(data) > 0 and no_of_blocks < len(d)):
-    #       data+= d[(offset+size)//MaxBLOCKSIZE][:size - len(data)]
-    #     return data
-    # ##
-    # #data = ''.join(d)
-    #       #return data[offset:offset + size]
+      #   # Case 2 : data spans over more than 1 block
+      #   else:
+      #     data = data[offset%MaxBLOCKSIZE :]
+      #     no_of_blocks = len(d)
+      #     if(b_no+size//MaxBLOCKSIZE < len(d)):
+      #       no_of_blocks = b_no+size//MaxBLOCKSIZE
+      #     for i in range(b_no+1, no_of_blocks):
+      #       data += d[i]
+      #     if(size - len(data) > 0 and no_of_blocks < len(d)):
+      #       data+= d[(offset+size)//MaxBLOCKSIZE][:size - len(data)]
+      #     return data
+      # ##
+      # #data = ''.join(d)
+      #       #return data[offset:offset + size]
 
   def readdir(self, path, fh):
 
       return pickle.loads(self.ms_helper.readdir(Binary(path), fh))
 
   def readlink(self, path):
-      print("readlink")
-      #return self.traverse(path, True)
+      
+      return self.ms_helper.readlink(Binary(path)).data
 
   def removexattr(self, path, name):
-      # p = self.traverse(path)
-      # attrs = p.get('attrs', {})
-      # try:
-      #     del attrs[name]
-      # except KeyError:
-      #     pass        # Should return ENOATTR
-      print("rm xattr")
+      
+      if(self.ms_helper.removexattr(Binary(path), Binary(name)).data == '1'):
+        raise FuseOSError(ENOATTR)
 
   def rename(self, old, new):
       # po, po1 = self.traverseparent(old)
@@ -153,51 +149,44 @@ class Memory(LoggingMixIn, Operations):
 
   def setxattr(self, path, name, value, options, position=0):
       # Ignore options
-      # p = self.traverse(path)
-      # attrs = p.setdefault('attrs', {})
-      # attrs[name] = value
-      print("setxattr")
+      p = self.traverse(path.data)
+      attrs = p.setdefault('attrs', {})
+      attrs[name] = value
+      
 
   def statfs(self, path):
       #return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
       print("statfs")
 
   def symlink(self, target, source):
-      # p, tar = self.traverseparent(target)
-      # p['files'][tar] = dict(st_mode=(S_IFLNK | 0o777), st_nlink=1,
-      #                           st_size=len(source))
-      # d, d1 = self.traverseparent(target, True)
-      # d[d1] = source
-      print("symlink")
+      
+      self.ms_helper.symlink(Binary(target), Binary(source))
 
   def truncate(self, path, length, fh = None):
-    # print("*** length = ", length)
-    # #print("file data = ",d)
-    # d,d1 = self.traverseparent(path, True)
-    # no_of_blocks = (length // MaxBLOCKSIZE) + 1
-    # d[d1] = d[d1][:no_of_blocks]
-    # d[d1][-1] = d[d1][-1][:length % MaxBLOCKSIZE]
-    # p = self.traverse(path)
-    # p['st_size'] = length
-    print("truncate")
+      # print("*** length = ", length)
+      # #print("file data = ",d)
+      # d,d1 = self.traverseparent(path, True)
+      # no_of_blocks = (length // MaxBLOCKSIZE) + 1
+      # d[d1] = d[d1][:no_of_blocks]
+      # d[d1][-1] = d[d1][-1][:length % MaxBLOCKSIZE]
+      # p = self.traverse(path)
+      # p['st_size'] = length
+      print("truncate")
 
   def unlink(self, path):
-    # p, tar = self.traverseparent(path)
-    # p['files'].pop(tar)
-    # d, d1 = self.traverseparent(path, True)
-    # d[d1] = ['']
-    print("unlink")
+      # p, tar = self.traverseparent(path)
+      # p['files'].pop(tar)
+      # d, d1 = self.traverseparent(path, True)
+      # d[d1] = ['']
+      print("unlink")
 
   def utimens(self, path, times = None):
-    # now = time()
-    # atime, mtime = times if times else (now, now)
-    # p = self.traverse(path)
-    # p['st_atime'] = atime
-    # p['st_mtime'] = mtime
-    print("utimes")
+      
+      #print("utimes")
+      self.ms_helper.utimens(Binary(path), times)
 
   def write(self, path, data, offset, fh):
-    print("inside write")
+      print("inside write")
 
 
 # Wrapper functions so the tests don't need to be concerned about Binary blobs

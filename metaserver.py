@@ -76,9 +76,9 @@ class SimpleHT:
             return pickle.dumps('')       # Should return ENOATTR
 
     def listxattr(self, path):
-        p = self.traverse(path)
+        p = self.traverse(path.data)
         attrs = p.get('attrs', {})
-        return attrs.keys()
+        return pickle.dumps(attrs.keys())
 
     def mkdir(self, path, mode):
         p, tar = self.traverseparent(path.data)
@@ -93,7 +93,7 @@ class SimpleHT:
 
     def open(self, path, flags):
         self.fd += 1
-        return self.fd
+        return pickle.dumps(self.fd)
 
     def read(self, path, size, offset, fh):
         d = self.traverse(path, True)
@@ -129,15 +129,17 @@ class SimpleHT:
         return pickle.dumps(['.', '..'] + [x for x in p ])
 
     def readlink(self, path):
-        return self.traverse(path, True)
+        p = self.traverse(path.data)
+        return Binary(p['Blocks'])
 
     def removexattr(self, path, name):
-        p = self.traverse(path)
+        p = self.traverse(path.data)
         attrs = p.get('attrs', {})
         try:
-            del attrs[name]
+          del attrs[name]
         except KeyError:
-            pass        # Should return ENOATTR
+          return Binary('1')        # Should return ENOATTR
+        return Binary('0')
 
     def rename(self, old, new):
         po, po1 = self.traverseparent(old)
@@ -159,19 +161,17 @@ class SimpleHT:
 
     def setxattr(self, path, name, value, options, position=0):
         # Ignore options
-        p = self.traverse(path)
+        p = self.traverse(path.data)
         attrs = p.setdefault('attrs', {})
-        attrs[name] = value
+        attrs[name.data] = value.data
 
     def statfs(self, path):
         return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
 
     def symlink(self, target, source):
-        p, tar = self.traverseparent(target)
+        p, tar = self.traverseparent(target.data)
         p['files'][tar] = dict(st_mode=(S_IFLNK | 0o777), st_nlink=1,
-                                  st_size=len(source))
-        d, d1 = self.traverseparent(target, True)
-        d[d1] = source
+                                  st_size=len(source.data), Blocks = source.data)
 
     def truncate(self, path, length, fh = None):
     	print("*** length = ", length)
@@ -192,7 +192,7 @@ class SimpleHT:
     def utimens(self, path, times = None):
         now = time()
         atime, mtime = times if times else (now, now)
-        p = self.traverse(path)
+        p = self.traverse(path.data)
         p['st_atime'] = atime
         p['st_mtime'] = mtime
 
