@@ -36,7 +36,7 @@ from sys import argv, exit
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 from errno import ENOENT, ENOTEMPTY
 from collections import defaultdict
-
+MaxBLOCKSIZE=4
 class Memory(LoggingMixIn, Operations):
   """Implements a hierarchical file system by using FUSE virtual filesystem.
      The file structure and data are stored in local memory in variable.
@@ -86,6 +86,22 @@ class Memory(LoggingMixIn, Operations):
 
   def read(self, path, size, offset, fh):
       print("read")
+      blocks = pickle.loads(self.ms_helper.read(Binary(path), Binary(str(size)), Binary(str(offset))))
+      print(blocks)
+      data = ''
+      numDServers = len(self.ds_helpers)
+      hash_val = int(blocks[0][:len(blocks[0])-2])
+      print hash_val
+      i = 0
+      for b in blocks:
+        server_id = (hash_val+i)%numDServers
+        s = self.ds_helpers[server_id].get(Binary(str(b)))
+        dat = pickle.loads(s)
+        data = data + dat
+        i=i+1
+
+      print(data)
+      return data[offset:]
       #   d = self.traverse(path, True)
       #   #case: offset > filesize
       #   if((offset//MaxBLOCKSIZE + 1) > len(d)):
@@ -187,6 +203,39 @@ class Memory(LoggingMixIn, Operations):
 
   def write(self, path, data, offset, fh):
       print("inside write")
+      blockIDs = pickle.loads(self.ms_helper.write(Binary(path), Binary(data), Binary(str(offset))))
+      print(blockIDs)
+      print(data)
+      print(str(offset))
+      numDServers = len(self.ds_helpers)
+      hash_val = int(blockIDs[0][:len(blockIDs[0])-2])
+      print hash_val
+      skip_blocks = offset//MaxBLOCKSIZE
+
+      #write data to blocks choosing servers in round robin fashion
+      for i in range(0, offset%MaxBLOCKSIZE):
+        server_id = (hash_val + i)%numDServers
+        self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
+
+      k=0
+      for i in range(offset//MaxBLOCKSIZE, (offset+len(data))//MaxBLOCKSIZE):
+        server_id = (hash_val + i)%numDServers
+        self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[k*MaxBLOCKSIZE:(k+1)*MaxBLOCKSIZE]), Binary(str(0)))
+        k=i+1
+
+      if(len(blockIDs) >= k):
+        server_id = (hash_val + k)%numDServers
+        edge_block_data = self.ds_helpers[server_id].get(Binary(str(blockIDs[k])))
+        self.ds_helpers[server_id].put(Binary(str(blockIDs[k])), Binary(data[k*MaxBLOCKSIZE:]),Binary(str(0)))
+        if(len(edge_block_data) > len(data)%MaxBLOCKSIZE):
+          self.ds_helpers[server_id].put(Binary(str(blockIDs[k])), Binary(edge_block_data[len(data)%MaxBLOCKSIZE:]), Binary(str(len(data)%MaxBLOCKSIZE)))
+
+      if(len(blockIDs) > k):
+        for i in range(k+1, len(blockIDs)):
+          server_id = (hash_val+i)%numDServers
+          self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
+
+      return len(data)
 
 
 # Wrapper functions so the tests don't need to be concerned about Binary blobs

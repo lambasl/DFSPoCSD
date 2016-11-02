@@ -33,6 +33,8 @@ from xmlrpclib import Binary
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 from time import time
 
+MaxBLOCKSIZE=128
+
 # Wrapper functions so the tests don't need to be concerned about Binary blobs
 class Helper:
   def __init__(self, caller):

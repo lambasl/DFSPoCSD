@@ -7,7 +7,9 @@ from datetime import datetime, timedelta
 from xmlrpclib import Binary
 from time import time
 from stat import S_IFDIR, S_IFLNK, S_IFREG
-from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
+import random
+
+MaxBLOCKSIZE=4
 
 # Presents a HT interface
 class SimpleHT:
@@ -95,34 +97,43 @@ class SimpleHT:
         self.fd += 1
         return pickle.dumps(self.fd)
 
-    def read(self, path, size, offset, fh):
-        d = self.traverse(path, True)
-    	#case: offset > filesize
-    	if((offset//MaxBLOCKSIZE + 1) > len(d)):
-    	    return ''
+    def read(self, bin_path, bin_size, bin_offset):
+        print("read")
+        path = bin_path.data
+        size = int(bin_size.data)
+        offset = int(bin_offset.data)
+        fp = self.traverse(path)
+        retBlocks = fp['blocks']
+        print(retBlocks)
+        return pickle.dumps(retBlocks)
 
-    	#get first block where offset lies
-    	b_no = offset // MaxBLOCKSIZE
-    	data = ""
-    	data = d[b_no]
-    	# Case 1 : data is within one block
-    	if(size < MaxBLOCKSIZE):
-    	    return data[offset%MaxBLOCKSIZE : offset%MaxBLOCKSIZE + size]
+     #    d = self.traverse(path, True)
+    	# #case: offset > filesize
+    	# if((offset//MaxBLOCKSIZE + 1) > len(d)):
+    	#     return ''
 
-    	# Case 2 : data spans over more than 1 block
-    	else:
-    	    data = data[offset%MaxBLOCKSIZE :]
-    	    no_of_blocks = len(d)
-    	    if(b_no+size//MaxBLOCKSIZE < len(d)):
-    		no_of_blocks = b_no+size//MaxBLOCKSIZE
-    	    for i in range(b_no+1, no_of_blocks):
-    		data += d[i]
-    	    if(size - len(data) > 0 and no_of_blocks < len(d)):
-    		data+= d[(offset+size)//MaxBLOCKSIZE][:size - len(data)]
-    	    return data
-    	##
-    	#data = ''.join(d)
-            #return data[offset:offset + size]
+    	# #get first block where offset lies
+    	# b_no = offset // MaxBLOCKSIZE
+    	# data = ""
+    	# data = d[b_no]
+    	# # Case 1 : data is within one block
+    	# if(size < MaxBLOCKSIZE):
+    	#     return data[offset%MaxBLOCKSIZE : offset%MaxBLOCKSIZE + size]
+
+    	# # Case 2 : data spans over more than 1 block
+    	# else:
+    	#     data = data[offset%MaxBLOCKSIZE :]
+    	#     no_of_blocks = len(d)
+    	#     if(b_no+size//MaxBLOCKSIZE < len(d)):
+    	# 	no_of_blocks = b_no+size//MaxBLOCKSIZE
+    	#     for i in range(b_no+1, no_of_blocks):
+    	# 	data += d[i]
+    	#     if(size - len(data) > 0 and no_of_blocks < len(d)):
+    	# 	data+= d[(offset+size)//MaxBLOCKSIZE][:size - len(data)]
+    	#     return data
+    	# ##
+    	# #data = ''.join(d)
+     #        #return data[offset:offset + size]
 
     def readdir(self, path, fh):
         p = self.traverse(path.data)['files']
@@ -196,66 +207,61 @@ class SimpleHT:
         p['st_atime'] = atime
         p['st_mtime'] = mtime
 
-    def write(self, path, data, offset, fh):
-        p = self.traverse(path)
-        d, d1 = self.traverseparent(path, True)
-    	if not d[d1]:
-	    #print("Write: empty list created")
-	       d[d1] = ['']
+    def write(self, bin_path, bin_data, bin_offset):
+        path = bin_path.data
+        offset = int(bin_offset.data)
+        data = bin_data.data
+        data_size = len(data)
+        p = self.traverse(path) #file pointer
+        d, d1 = self.traverseparent(path) #d = parent pointer, d1=filename
+        print(p)
+        print(d)
+        print(d1)
     	#print("file_data",self.data)
     	file_size  = p['st_size']
-    	
-    	#for testing	
-    	#offset = 5
-    	#d[d1].append("helloworld")
-    	#file_size = 11
-    	##
-    	
-    	#print("previous file size=",file_size)
+        blockIds = []
+        if('hash_val' not in p):
+            #first time write
+            data_size = data_size + offset
+            print("first time write")
+            num_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
+            rand = random.randint(100,100000)
+            p['hash_val'] = rand
+            for i in range(0,num_blocks):
+                blockID = str(rand) + str(i)
+                blockIds.append(blockID)
+            p['blocks'] = blockIds
+            p['st_size'] = data_size
+            return pickle.dumps(blockIds)
+        else:
+            hash_val = p['hash_val']
+            blockIds = p['blocks']
+            if(offset >= file_size):
+                #need to append the file with data
+                last_block = len(blockIds)
+                data_size = (offset - file_size%MaxBLOCKSIZE) + data_size
+                num_new_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
+                for i in range(0, num_new_blocks):
+                    blockIds.append(str(hash_val) + str(last_block+i))
+                p['blocks'] = blockIds
+                p['st_size'] = data_size
+                return pickle.dumps(blockIds)
+            else:
+                edge_block = 0 if offset==0 else offset//MaxBLOCKSIZE
+                retain_blocks = blockIds[:edge_block]
+                if(file_size < offset + data_size):
+                    last_block = len(blockIds)
+                    new_size = offset + data_size
+                    extra_data = new_size - len(blockIds)*MaxBLOCKSIZE
+                    num_new_blocks =  extra_data//MaxBLOCKSIZE if (extra_data % MaxBLOCKSIZE) == 0 else extra_data//MaxBLOCKSIZE +1
+                    for i in range(0, num_new_blocks):
+                        blockIds.append(str(hash_val) + str(last_block+i))
+                    p['blocks'] = blockIds
+                    p['st_size'] = new_size
+                    return pickle.dumps(blockIds)
+                else:
+                    return pickle.dumps(blockIds)
 
-    	# Case 1: append null chars if offset > filesize
-    	if(offset > file_size):
-    	    null_chars = "\x00"*(offset - file_size)
-    	    extra_data = self.format_data(null_chars, file_size)
-    	    last_block_no = (file_size)//MaxBLOCKSIZE
-    	    if((file_size+1) % MaxBLOCKSIZE > 0):
-    	        d[d1][last_block_no] += extra_data[0]
-    	        extra_data.pop(0)
-      	    for i in extra_data:
-    	        d[d1].append(i)
-    	    Block_no = offset//MaxBLOCKSIZE
-    	    formatted_data = self.format_data(data, offset)
-    	    if(offset % MaxBLOCKSIZE > 0):
-    	        d[d1][Block_no] += formatted_data[0]
-    	        formatted_data.pop(0)
-    	    for i in formatted_data:
-    	        d[d1].append(i)
-    	##
-    	#Case 2: len(data)+offset <= file_size 
-    	elif(len(data)+offset <= file_size):
-    	    present_data = ''.join(d[d1])
-    	    p1 = present_data[:offset]
-    	    p2 = present_data[offset+len(data):]
-    	    new_data = p1 + data + p2
-    	    new_data_listview = [new_data[i:i+MaxBLOCKSIZE] for i in range(0, len(new_data), MaxBLOCKSIZE)]
-    	    d[d1] = new_data_listview
-    	
-    	#Case 3: offset < filesize and len(data)+offset > file_size 
-    	else:
-    	    Block_no = offset//MaxBLOCKSIZE
-    	    formatted_data = self.format_data(data, offset)
-    	    if(offset % MaxBLOCKSIZE > 0):
-    	        d[d1][Block_no] += formatted_data[0]
-    	        formatted_data.pop(0)
-    	    for i in formatted_data:
-    		if(offset == 0):
-    		    d[d1].pop(0)
-    	        d[d1].append(i)
-    		
-    	current_data = ''.join(d[d1])
-        p['st_size'] = len(current_data)
-    	#print("file_data_after write",self.data)
-        return len(data)
 
     def format_data(self, data, offset):
         Block_no = offset//MaxBLOCKSIZE
@@ -275,7 +281,7 @@ def main():
   for k,v in optlist:
     ol[k] = v
 
-  port = 51234
+  port = 51239
   if "--port" in ol:
     port = int(ol["--port"])
   serve(port)
