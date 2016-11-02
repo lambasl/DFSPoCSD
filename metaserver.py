@@ -215,15 +215,17 @@ class SimpleHT:
         p = self.traverse(path) #file pointer
         d, d1 = self.traverseparent(path) #d = parent pointer, d1=filename
         print(p)
-        print(d)
-        print(d1)
+        print(data)
+        print(offset)
     	#print("file_data",self.data)
     	file_size  = p['st_size']
+        print('original file size:' + str(file_size))
+
         blockIds = []
         if('hash_val' not in p):
             #first time write
+            print('file did not exist earlier, writing first time')
             data_size = data_size + offset
-            print("first time write")
             num_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
             rand = random.randint(100,100000)
             p['hash_val'] = rand
@@ -234,10 +236,12 @@ class SimpleHT:
             p['st_size'] = data_size
             return pickle.dumps(blockIds)
         else:
+            print('file already exists')
             hash_val = p['hash_val']
             blockIds = p['blocks']
-            if(offset >= file_size):
+            if(offset > file_size):
                 #need to append the file with data
+                print('need to write beyond actual file size, here comes the /x00s')
                 last_block = len(blockIds)
                 data_size = (offset - file_size%MaxBLOCKSIZE) + data_size
                 num_new_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
@@ -247,6 +251,7 @@ class SimpleHT:
                 p['st_size'] = data_size
                 return pickle.dumps(blockIds)
             else:
+                print('need to overwite some data in between')
                 edge_block = 0 if offset==0 else offset//MaxBLOCKSIZE
                 retain_blocks = blockIds[:edge_block]
                 if(file_size < offset + data_size):

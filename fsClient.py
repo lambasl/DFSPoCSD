@@ -90,7 +90,7 @@ class Memory(LoggingMixIn, Operations):
       print(blocks)
       data = ''
       numDServers = len(self.ds_helpers)
-      hash_val = int(blocks[0][:len(blocks[0])-2])
+      hash_val = int(blocks[0][:len(blocks[0])-1])
       print hash_val
       i = 0
       for b in blocks:
@@ -208,32 +208,56 @@ class Memory(LoggingMixIn, Operations):
       print(data)
       print(str(offset))
       numDServers = len(self.ds_helpers)
-      hash_val = int(blockIDs[0][:len(blockIDs[0])-2])
-      print hash_val
+      hash_val = int(blockIDs[0][:len(blockIDs[0])-1])
+      print(hash_val)
       skip_blocks = offset//MaxBLOCKSIZE
 
+      #we are returning all the blocks here and skipping the ones we dont need to overwite
       #write data to blocks choosing servers in round robin fashion
-      for i in range(0, offset%MaxBLOCKSIZE):
+
+      #if offset is 0 nothing happens else same data ot nulls are written to the blocks as per case 
+      for i in range(0, offset//MaxBLOCKSIZE):
+        print("moving few data blocks")
         server_id = (hash_val + i)%numDServers
         self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
 
+      up = (offset+len(data))//MaxBLOCKSIZE if ((offset+len(data))%MaxBLOCKSIZE) == 0 else (offset+len(data))//MaxBLOCKSIZE + 1
       k=0
-      for i in range(offset//MaxBLOCKSIZE, (offset+len(data))//MaxBLOCKSIZE):
+      first_offset = 0 if offset%MaxBLOCKSIZE == 0 else offset%MaxBLOCKSIZE
+      start = 0
+      end = MaxBLOCKSIZE
+      print("first offset:" + str(first_offset))
+      for i in range(offset//MaxBLOCKSIZE, up):
         server_id = (hash_val + i)%numDServers
-        self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[k*MaxBLOCKSIZE:(k+1)*MaxBLOCKSIZE]), Binary(str(0)))
-        k=i+1
+        print('iterator:' + str(i))
+        if(first_offset == 0):
+          print("start:" + str(start) + ",end:" + str(end))
+          self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)))
+        else:
+          start = 0
+          end = MaxBLOCKSIZE - first_offset
+          print("start:" + str(start) + ",end:" + str(end))
+          self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)))
+          first_offset = 0
+        start = end;
+        end = start + MaxBLOCKSIZE
+        k=k+1
 
-      if(len(blockIDs) >= k):
-        server_id = (hash_val + k)%numDServers
-        edge_block_data = self.ds_helpers[server_id].get(Binary(str(blockIDs[k])))
-        self.ds_helpers[server_id].put(Binary(str(blockIDs[k])), Binary(data[k*MaxBLOCKSIZE:]),Binary(str(0)))
-        if(len(edge_block_data) > len(data)%MaxBLOCKSIZE):
-          self.ds_helpers[server_id].put(Binary(str(blockIDs[k])), Binary(edge_block_data[len(data)%MaxBLOCKSIZE:]), Binary(str(len(data)%MaxBLOCKSIZE)))
+      # if(len(blockIDs) >= k):
+      #   #there is some data to be copied back
+      #   server_id = (hash_val + k)%numDServers
+      #   edge_block_data = self.ds_helpers[server_id].get(Binary(str(blockIDs[k])))
+      #   self.ds_helpers[server_id].put(Binary(str(blockIDs[k])), Binary(data[k*MaxBLOCKSIZE:]),Binary(str(0)))
+      #   if(len(edge_block_data) > len(data)%MaxBLOCKSIZE):
+      #     self.ds_helpers[server_id].put(Binary(str(blockIDs[k])), Binary(edge_block_data[len(data)%MaxBLOCKSIZE:]), Binary(str(len(data)%MaxBLOCKSIZE)))
 
-      if(len(blockIDs) > k):
-        for i in range(k+1, len(blockIDs)):
-          server_id = (hash_val+i)%numDServers
-          self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
+      #how do we know if we need to overwrite the file?
+      # if(len(blockIDs) > k and len(data)):
+      #   print('copying extra blocks')
+      #   for i in range(k+1, len(blockIDs)):
+      #     print('iterator:' + str(i))
+      #     server_id = (hash_val+i)%numDServers
+      #     self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
 
       return len(data)
 
