@@ -32,6 +32,9 @@ class DataServerHT:
     self.data = {}
 
   def get(self, key):
+    '''
+
+    '''
     k = str(key.data)
     print("request received for blockID:" + k)
     if k in self.data:
@@ -43,11 +46,29 @@ class DataServerHT:
       return pickle.dumps("No Val")
 
   def put(self, key, value, offset):
+    '''
+    puts the data in key block from the offset value. If data existed previously in the block same data is kept
+    upto offset and beyond (offset+len(data)) and overwitten between offset and offset +len(data).
+    If data does not exist upto offset in block, its filled with null chars upto offset.
+    '''
+    print('key:' + key.data)
+    print('value:' + value.data)
+    print('offset:' + str(offset))
     val = self.data[key.data] if key.data in self.data else ""
+    print('old data' + val )
     offset = int(offset.data)
     if(offset <= len(val)):
+      print('here 0')
       self.data[key.data] = val[:offset] + value.data
+      print(self.data[key.data])
+      if(len(val) > offset + len(value.data)):
+        print('here 1')
+        #hold on there is still more data to be copied to the block
+        self.data[key.data] = self.data[key.data] + val[offset + len(value.data):]
+        print(self.data[key.data])
     else:
+      #time to add some nulls
+      print('here3')
       null_chars = "\x00"*(offset - len(val))
       self.data[key.data] = val + null_chars + value.data
     print(self.data)
