@@ -153,16 +153,13 @@ class SimpleHT:
         return Binary('0')
 
     def rename(self, old, new):
-        po, po1 = self.traverseparent(old)
-        pn, pn1 = self.traverseparent(new)
+        po, po1 = self.traverseparent(old.data)
+        pn, pn1 = self.traverseparent(new.data)
         if po['files'][po1]['st_mode'] & 0o770000 == S_IFDIR:
             po['st_nlink'] -= 1
             pn['st_nlink'] += 1
         pn['files'][pn1] = po['files'].pop(po1)
-        do, do1 = self.traverseparent(old, True)
-        dn, dn1 = self.traverseparent(new, True)
-        dn[dn1] = do.pop(do1)
-
+        
     def rmdir(self, path):
         p, tar = self.traverseparent(path)
         if len(p['files'][tar]['files']) > 0:
@@ -215,15 +212,17 @@ class SimpleHT:
         p = self.traverse(path) #file pointer
         d, d1 = self.traverseparent(path) #d = parent pointer, d1=filename
         print(p)
-        print(d)
-        print(d1)
+        print(data)
+        print(offset)
     	#print("file_data",self.data)
     	file_size  = p['st_size']
+        print('original file size:' + str(file_size))
+
         blockIds = []
         if('hash_val' not in p):
             #first time write
+            print('file did not exist earlier, writing first time')
             data_size = data_size + offset
-            print("first time write")
             num_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
             rand = random.randint(100,100000)
             p['hash_val'] = rand
@@ -234,10 +233,12 @@ class SimpleHT:
             p['st_size'] = data_size
             return pickle.dumps(blockIds)
         else:
+            print('file already exists')
             hash_val = p['hash_val']
             blockIds = p['blocks']
-            if(offset >= file_size):
+            if(offset > file_size):
                 #need to append the file with data
+                print('need to write beyond actual file size, here comes the /x00s')
                 last_block = len(blockIds)
                 data_size = (offset - file_size%MaxBLOCKSIZE) + data_size
                 num_new_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
@@ -247,6 +248,7 @@ class SimpleHT:
                 p['st_size'] = data_size
                 return pickle.dumps(blockIds)
             else:
+                print('need to overwite some data in between')
                 edge_block = 0 if offset==0 else offset//MaxBLOCKSIZE
                 retain_blocks = blockIds[:edge_block]
                 if(file_size < offset + data_size):
