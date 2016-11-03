@@ -9,7 +9,7 @@ from time import time
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 import random
 
-MaxBLOCKSIZE=4
+MaxBLOCKSIZE=512
 
 # Presents a HT interface
 class SimpleHT:
@@ -22,6 +22,9 @@ class SimpleHT:
                 st_mtime=now, st_atime=now, st_nlink=2, files={})
         # The key 'files' holds a dict of filenames(and their attributes
         #  and 'files' if it is a directory) under each level
+    def gethashVal(self, bin_path):
+        path = bin_path.data
+        return pickle.dumps(str(self.traverse(path)['hash_val']))
 
     def traverse(self, path):
         """Traverses the dict of dict(self.files) to get pointer
@@ -45,8 +48,8 @@ class SimpleHT:
     def chmod(self, path, mode):
         p = self.traverse(path.data)
         p['st_mode'] &= 0o770000
-        p['st_mode'] |= mode.data
-        return Binary(0)
+        p['st_mode'] |= mode
+        return 0
 
     def chown(self, path, uid, gid):
         p = self.traverse(path.data)
@@ -57,7 +60,7 @@ class SimpleHT:
         p, tar = self.traverseparent(path.data)
         p['files'][tar] = dict(st_mode=(S_IFREG | int(mode.data)), st_nlink=1,
                      st_size=0, st_ctime=time(), st_mtime=time(),
-                     st_atime=time())
+                     st_atime=time(), blocks=[])
         self.fd += 1
         return self.fd
 
@@ -67,7 +70,7 @@ class SimpleHT:
         except KeyError:
             return pickle.dumps(-1)
         print("returning attr")
-        return pickle.dumps({attr:p[attr] for attr in p.keys() if attr != 'files'})
+        return pickle.dumps({attr:p[attr] for attr in p.keys() if (attr != 'files' and attr != 'blocks')})
 
     def getxattr(self, path, name, position=0):
         p = self.traverse(path.data)
@@ -141,7 +144,7 @@ class SimpleHT:
 
     def readlink(self, path):
         p = self.traverse(path.data)
-        return Binary(p['Blocks'])
+        return Binary(p['blocks'][0])
 
     def removexattr(self, path, name):
         p = self.traverse(path.data)
@@ -161,7 +164,7 @@ class SimpleHT:
         pn['files'][pn1] = po['files'].pop(po1)
         
     def rmdir(self, path):
-        p, tar = self.traverseparent(path)
+        p, tar = self.traverseparent(path.data)
         if len(p['files'][tar]['files']) > 0:
             raise FuseOSError(ENOTEMPTY)
         p['files'].pop(tar)
@@ -179,23 +182,27 @@ class SimpleHT:
     def symlink(self, target, source):
         p, tar = self.traverseparent(target.data)
         p['files'][tar] = dict(st_mode=(S_IFLNK | 0o777), st_nlink=1,
-                                  st_size=len(source.data), Blocks = source.data)
+                                  st_size=len(source.data), blocks = [source.data])
 
-    def truncate(self, path, length, fh = None):
+    def truncate(self, bin_path, bin_length, fh = None):
+        length = int(bin_length.data)
+        path = bin_path.data
     	print("*** length = ", length)
     	#print("file data = ",d)
-        d,d1 = self.traverseparent(path, True)
-    	no_of_blocks = (length // MaxBLOCKSIZE) + 1
-    	d[d1] = d[d1][:no_of_blocks]
-    	d[d1][-1] = d[d1][-1][:length % MaxBLOCKSIZE]
         p = self.traverse(path)
         p['st_size'] = length
+        blocks = p['blocks']
+        num_blocks = length//MaxBLOCKSIZE
+        keep_blocks_num = num_blocks if length%MaxBLOCKSIZE else num_blocks+1
+        p['blocks'] = blocks[:keep_blocks_num]
+        return pickle.dumps(blocks[num_blocks:])
 
     def unlink(self, path):
-        p, tar = self.traverseparent(path)
+        p, tar = self.traverseparent(path.data)
+        print("Blocks = ",p['files'][tar]['blocks'])
+        blocks = p['files'][tar]['blocks']
         p['files'].pop(tar)
-    	d, d1 = self.traverseparent(path, True)
-    	d[d1] = ['']
+        return pickle.dumps(blocks)
 
     def utimens(self, path, times = None):
         now = time()
@@ -210,7 +217,7 @@ class SimpleHT:
         data = bin_data.data
         data_size = len(data)
         p = self.traverse(path) #file pointer
-        d, d1 = self.traverseparent(path) #d = parent pointer, d1=filename
+        #d, d1 = self.traverseparent(path) #d = parent pointer, d1=filename
         print(p)
         print(data)
         print(offset)
@@ -231,6 +238,7 @@ class SimpleHT:
                 blockIds.append(blockID)
             p['blocks'] = blockIds
             p['st_size'] = data_size
+            print('num of blocks:' , len(blockIds))
             return pickle.dumps(blockIds)
         else:
             print('file already exists')
@@ -264,18 +272,6 @@ class SimpleHT:
                 else:
                     return pickle.dumps(blockIds)
 
-
-    def format_data(self, data, offset):
-        Block_no = offset//MaxBLOCKSIZE
-        Offset_in_block = offset % MaxBLOCKSIZE	
-        formatted_data = []
-        if(Offset_in_block > 0):
-            formatted_data.append(data[0:MaxBLOCKSIZE - Offset_in_block])
-            data = data[MaxBLOCKSIZE - Offset_in_block : ]
-        data_len = len(data)
-        data = [ data[i:i+MaxBLOCKSIZE] for i in range(0, data_len, MaxBLOCKSIZE) ]
-        formatted_data += data
-        return formatted_data
 
 def main():
   optlist, args = getopt.getopt(sys.argv[1:], "", ["port="])
@@ -315,6 +311,7 @@ def serve(port):
   file_server.register_function(sht.unlink)
   file_server.register_function(sht.utimens)
   file_server.register_function(sht.write)
+  file_server.register_function(sht.gethashVal)
 
   print("Server Running")
   file_server.serve_forever()

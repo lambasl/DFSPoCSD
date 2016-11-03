@@ -4,7 +4,7 @@ import sys, SimpleXMLRPCServer, getopt, pickle, time, threading, xmlrpclib, unit
 from datetime import datetime, timedelta
 from xmlrpclib import Binary
 import pickle
-MaxBLOCKSIZE=4
+MaxBLOCKSIZE=512
 
 def main():
   optlist, args = getopt.getopt(sys.argv[1:], "", ["port=", "test"])
