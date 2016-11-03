@@ -22,6 +22,9 @@ class SimpleHT:
                 st_mtime=now, st_atime=now, st_nlink=2, files={})
         # The key 'files' holds a dict of filenames(and their attributes
         #  and 'files' if it is a directory) under each level
+    def gethashVal(self, bin_path):
+        path = bin_path.data
+        return pickle.dumps(str(self.traverse(path)['hash_val']))
 
     def traverse(self, path):
         """Traverses the dict of dict(self.files) to get pointer
@@ -45,8 +48,8 @@ class SimpleHT:
     def chmod(self, path, mode):
         p = self.traverse(path.data)
         p['st_mode'] &= 0o770000
-        p['st_mode'] |= mode.data
-        return Binary(0)
+        p['st_mode'] |= mode
+        return 0
 
     def chown(self, path, uid, gid):
         p = self.traverse(path.data)
@@ -57,7 +60,7 @@ class SimpleHT:
         p, tar = self.traverseparent(path.data)
         p['files'][tar] = dict(st_mode=(S_IFREG | int(mode.data)), st_nlink=1,
                      st_size=0, st_ctime=time(), st_mtime=time(),
-                     st_atime=time())
+                     st_atime=time(), blocks=[])
         self.fd += 1
         return self.fd
 
@@ -141,7 +144,7 @@ class SimpleHT:
 
     def readlink(self, path):
         p = self.traverse(path.data)
-        return Binary(p['Blocks'])
+        return Binary(p['blocks'])
 
     def removexattr(self, path, name):
         p = self.traverse(path.data)
@@ -179,17 +182,20 @@ class SimpleHT:
     def symlink(self, target, source):
         p, tar = self.traverseparent(target.data)
         p['files'][tar] = dict(st_mode=(S_IFLNK | 0o777), st_nlink=1,
-                                  st_size=len(source.data), Blocks = source.data)
+                                  st_size=len(source.data), blocks = source.data)
 
-    def truncate(self, path, length, fh = None):
+    def truncate(self, bin_path, bin_length, fh = None):
+        length = int(bin_length.data)
+        path = bin_path.data
     	print("*** length = ", length)
     	#print("file data = ",d)
-        d,d1 = self.traverseparent(path, True)
-    	no_of_blocks = (length // MaxBLOCKSIZE) + 1
-    	d[d1] = d[d1][:no_of_blocks]
-    	d[d1][-1] = d[d1][-1][:length % MaxBLOCKSIZE]
         p = self.traverse(path)
         p['st_size'] = length
+        blocks = p['blocks']
+        num_blocks = length//MaxBLOCKSIZE
+        keep_blocks_num = num_blocks if length%MaxBLOCKSIZE else num_blocks+1
+        p['blocks'] = blocks[:keep_blocks_num]
+        return pickle.dumps(blocks[num_blocks:])
 
     def unlink(self, path):
         p, tar = self.traverseparent(path)
@@ -210,7 +216,7 @@ class SimpleHT:
         data = bin_data.data
         data_size = len(data)
         p = self.traverse(path) #file pointer
-        d, d1 = self.traverseparent(path) #d = parent pointer, d1=filename
+        #d, d1 = self.traverseparent(path) #d = parent pointer, d1=filename
         print(p)
         print(data)
         print(offset)
@@ -231,6 +237,7 @@ class SimpleHT:
                 blockIds.append(blockID)
             p['blocks'] = blockIds
             p['st_size'] = data_size
+            print('num of blocks:' , len(blockIds))
             return pickle.dumps(blockIds)
         else:
             print('file already exists')
@@ -315,6 +322,7 @@ def serve(port):
   file_server.register_function(sht.unlink)
   file_server.register_function(sht.utimens)
   file_server.register_function(sht.write)
+  file_server.register_function(sht.gethashVal)
 
   print("Server Running")
   file_server.serve_forever()

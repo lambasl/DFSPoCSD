@@ -37,6 +37,7 @@ from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 from errno import ENOENT, ENOTEMPTY
 from collections import defaultdict
 MaxBLOCKSIZE=4
+numDServers=0
 class Memory(LoggingMixIn, Operations):
   """Implements a hierarchical file system by using FUSE virtual filesystem.
      The file structure and data are stored in local memory in variable.
@@ -47,7 +48,7 @@ class Memory(LoggingMixIn, Operations):
       self.ds_helpers = ds_helpers
 
   def chmod(self, path, mode):
-      if(self.ms_helper.chmod(Binary(path),Binary(mode) == 0)):
+      if(self.ms_helper.chmod(Binary(path),mode) == 0):
         return 0
 
   def chown(self, path, uid, gid):
@@ -188,6 +189,18 @@ class Memory(LoggingMixIn, Operations):
       # p = self.traverse(path)
       # p['st_size'] = length
       print("truncate")
+      hash_val = pickle.loads(self.ms_helper.gethashVal(Binary(path)))
+      delete_blocks = pickle.loads(self.ms_helper.truncate(Binary(path), Binary(str(length))))
+      offset = length%MaxBLOCKSIZE
+      for b in delete_blocks:
+        block_num = int(b[len(hash_val):])
+        server_id = (int(hash_val) + block_num)%numDServers
+        if(offset != 0):
+          self.ds_helpers[server_id].truncate(Binary(b), Binary(offset))
+          offset=0
+        else:
+          self.ds_helpers[server_id].delete(Binary(b))
+
 
   def unlink(self, path):
       # p, tar = self.traverseparent(path)
@@ -202,22 +215,21 @@ class Memory(LoggingMixIn, Operations):
       self.ms_helper.utimens(Binary(path), times)
 
   def write(self, path, data, offset, fh):
-      print("inside write")
+      #print("inside write")
       blockIDs = pickle.loads(self.ms_helper.write(Binary(path), Binary(data), Binary(str(offset))))
-      print(blockIDs)
-      print(data)
-      print(str(offset))
-      numDServers = len(self.ds_helpers)
+      #print(blockIDs)
+      #print(data)
+      #print(str(offset))
       hash_val = int(blockIDs[0][:len(blockIDs[0])-1])
-      print(hash_val)
+      #print(hash_val)
       skip_blocks = offset//MaxBLOCKSIZE
 
       #we are returning all the blocks here and skipping the ones we dont need to overwite
       #write data to blocks choosing servers in round robin fashion
 
-      #if offset is 0 nothing happens else same data ot nulls are written to the blocks as per case 
+      #if offset is 0 nothing happens else same data nulls are written to the blocks as per case 
       for i in range(0, offset//MaxBLOCKSIZE):
-        print("moving few data blocks")
+        #print("moving few data blocks")
         server_id = (hash_val + i)%numDServers
         self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
 
@@ -226,17 +238,17 @@ class Memory(LoggingMixIn, Operations):
       first_offset = 0 if offset%MaxBLOCKSIZE == 0 else offset%MaxBLOCKSIZE
       start = 0
       end = MaxBLOCKSIZE
-      print("first offset:" + str(first_offset))
+      #print("first offset:" + str(first_offset))
       for i in range(offset//MaxBLOCKSIZE, up):
         server_id = (hash_val + i)%numDServers
-        print('iterator:' + str(i))
+        #print('iterator:' + str(i))
         if(first_offset == 0):
-          print("start:" + str(start) + ",end:" + str(end))
+          #print("start:" + str(start) + ",end:" + str(end))
           self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)))
         else:
           start = 0
           end = MaxBLOCKSIZE - first_offset
-          print("start:" + str(start) + ",end:" + str(end))
+          #print("start:" + str(start) + ",end:" + str(end))
           self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)))
           first_offset = 0
         start = end;
@@ -299,7 +311,9 @@ def main():
     server_url = "http://127.0.0.1:" + str(ds)
     ds_helper.append(xmlrpclib.Server(server_url))
     #ds_helper.append(Helper(xmlrpclib.Server(server_url)))
-    
+  global numDServers 
+  numDServers = len(ds_helper)
+  print("num of data servers", numDServers)
   logging.basicConfig(level=logging.DEBUG)
   fuse = FUSE(Memory(ms_helper,ds_helper), argv[1], foreground=True, debug=True)
 
