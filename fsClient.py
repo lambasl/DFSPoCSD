@@ -36,7 +36,9 @@ from sys import argv, exit
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 from errno import ENOENT, ENOTEMPTY
 from collections import defaultdict
+
 MaxBLOCKSIZE=512
+
 numDServers=0
 class Memory(LoggingMixIn, Operations):
   """Implements a hierarchical file system by using FUSE virtual filesystem.

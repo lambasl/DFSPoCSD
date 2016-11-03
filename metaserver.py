@@ -182,7 +182,7 @@ class SimpleHT:
     def symlink(self, target, source):
         p, tar = self.traverseparent(target.data)
         p['files'][tar] = dict(st_mode=(S_IFLNK | 0o777), st_nlink=1,
-                                  st_size=len(source.data), blocks = [source.data])
+        st_size=len(source.data), blocks = [source.data])
 
     def truncate(self, bin_path, bin_length, fh = None):
         length = int(bin_length.data)
