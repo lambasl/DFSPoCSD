@@ -180,13 +180,10 @@ class Memory(LoggingMixIn, Operations):
       # d, d1 = self.traverseparent(path, True)
       # d[d1] = ['']
       blocks = pickle.loads(self.ms_helper.unlink(Binary(path)))
-      hash_val = pickle.loads(self.ms_helper.gethashVal(Binary(path)))
-      print('hash', hash_val)
-      for b in blocks:
-        block_num = b[len(hash_val):]
-        server_id = (int(hash_val) + int(block_num))%numDServers
-        self.ds_helpers[server_id].delete(Binary(b))
-      print('deleted blocks:', blocks)
+      for ds in self.ds_helpers:
+        for blk in blocks:
+          ds.delete(Binary(blk))
+      self.ds_helpers[0].get(Binary(blocks[0]))
 
   def utimens(self, path, times = None):
       
