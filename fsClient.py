@@ -153,14 +153,7 @@ class Memory(LoggingMixIn, Operations):
       self.ms_helper.symlink(Binary(target), Binary(source))
 
   def truncate(self, path, length, fh = None):
-      # print("*** length = ", length)
-      # #print("file data = ",d)
-      # d,d1 = self.traverseparent(path, True)
-      # no_of_blocks = (length // MaxBLOCKSIZE) + 1
-      # d[d1] = d[d1][:no_of_blocks]
-      # d[d1][-1] = d[d1][-1][:length % MaxBLOCKSIZE]
-      # p = self.traverse(path)
-      # p['st_size'] = length
+      
       print("truncate")
       hash_val = pickle.loads(self.ms_helper.gethashVal(Binary(path)))
       delete_blocks = pickle.loads(self.ms_helper.truncate(Binary(path), Binary(str(length))))
@@ -175,18 +168,17 @@ class Memory(LoggingMixIn, Operations):
           self.ds_helpers[server_id].delete(Binary(b))
 
   def unlink(self, path):
-      # p, tar = self.traverseparent(path)
-      # p['files'].pop(tar)
-      # d, d1 = self.traverseparent(path, True)
-      # d[d1] = ['']
+      
       hash_val = pickle.loads(self.ms_helper.gethashVal(Binary(path)))
       blocks = pickle.loads(self.ms_helper.unlink(Binary(path)))
-      print('hash', hash_val)
-      for b in blocks:
-        block_num = b[len(hash_val):]
-        server_id = (int(hash_val) + int(block_num))%numDServers
-        self.ds_helpers[server_id].delete(Binary(b))
-      print('deleted blocks:', blocks)
+      #perform unlink on data servers only if its not a symlink, as symlink has no data on data servers
+      if(blocks != "symlink"):
+        print('hash', hash_val)
+        for b in blocks:
+          block_num = b[len(hash_val):]
+          server_id = (int(hash_val) + int(block_num))%numDServers
+          self.ds_helpers[server_id].delete(Binary(b))
+        print('deleted blocks:', blocks)
 
   def utimens(self, path, times = None):
       
@@ -235,22 +227,6 @@ class Memory(LoggingMixIn, Operations):
         start = end;
         end = start + MaxBLOCKSIZE
         k=k+1
-
-      # if(len(blockIDs) >= k):
-      #   #there is some data to be copied back
-      #   server_id = (hash_val + k)%numDServers
-      #   edge_block_data = self.ds_helpers[server_id].get(Binary(str(blockIDs[k])))
-      #   self.ds_helpers[server_id].put(Binary(str(blockIDs[k])), Binary(data[k*MaxBLOCKSIZE:]),Binary(str(0)))
-      #   if(len(edge_block_data) > len(data)%MaxBLOCKSIZE):
-      #     self.ds_helpers[server_id].put(Binary(str(blockIDs[k])), Binary(edge_block_data[len(data)%MaxBLOCKSIZE:]), Binary(str(len(data)%MaxBLOCKSIZE)))
-
-      #how do we know if we need to overwrite the file?
-      # if(len(blockIDs) > k and len(data)):
-      #   print('copying extra blocks')
-      #   for i in range(k+1, len(blockIDs)):
-      #     print('iterator:' + str(i))
-      #     server_id = (hash_val+i)%numDServers
-      #     self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
 
       return len(data)
 

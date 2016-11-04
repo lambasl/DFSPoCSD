@@ -122,34 +122,6 @@ class SimpleHT:
         print(retBlocks)
         return pickle.dumps(retBlocks)
 
-     #    d = self.traverse(path, True)
-    	# #case: offset > filesize
-    	# if((offset//MaxBLOCKSIZE + 1) > len(d)):
-    	#     return ''
-
-    	# #get first block where offset lies
-    	# b_no = offset // MaxBLOCKSIZE
-    	# data = ""
-    	# data = d[b_no]
-    	# # Case 1 : data is within one block
-    	# if(size < MaxBLOCKSIZE):
-    	#     return data[offset%MaxBLOCKSIZE : offset%MaxBLOCKSIZE + size]
-
-    	# # Case 2 : data spans over more than 1 block
-    	# else:
-    	#     data = data[offset%MaxBLOCKSIZE :]
-    	#     no_of_blocks = len(d)
-    	#     if(b_no+size//MaxBLOCKSIZE < len(d)):
-    	# 	no_of_blocks = b_no+size//MaxBLOCKSIZE
-    	#     for i in range(b_no+1, no_of_blocks):
-    	# 	data += d[i]
-    	#     if(size - len(data) > 0 and no_of_blocks < len(d)):
-    	# 	data+= d[(offset+size)//MaxBLOCKSIZE][:size - len(data)]
-    	#     return data
-    	# ##
-    	# #data = ''.join(d)
-     #        #return data[offset:offset + size]
-
     def readdir(self, path, fh):
         p = self.traverse(path.data)['files']
         return pickle.dumps(['.', '..'] + [x for x in p ])
@@ -192,9 +164,11 @@ class SimpleHT:
         return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
 
     def symlink(self, target, source):
+        #change: hash value required because new file is created
+        hashv = self.hashVal(target.data)
         p, tar = self.traverseparent(target.data)
         p['files'][tar] = dict(st_mode=(S_IFLNK | 0o777), st_nlink=1,
-        st_size=len(source.data), blocks = [source.data])
+        st_size=len(source.data), blocks = [source.data], hash_val = hashv)
 
     def truncate(self, bin_path, bin_length, fh = None):
         length = int(bin_length.data)
@@ -212,6 +186,10 @@ class SimpleHT:
     def unlink(self, path):
         print(self.files)
         p, tar = self.traverseparent(path.data)
+        #For symbolic links unlink is limited to metaserver, hence no need to return blocks
+        if(p['files'][tar]['st_mode'] == (S_IFLNK | 0o777)):
+            p['files'].pop(tar)
+            return pickle.dumps("symlink")
         print("Blocks = ",p['files'][tar]['blocks'])
         blocks = p['files'][tar]['blocks']
         p['files'].pop(tar)
@@ -289,7 +267,7 @@ def main():
   for k,v in optlist:
     ol[k] = v
 
-  port = 51239
+  port = 12345
   if "--port" in ol:
     port = int(ol["--port"])
   serve(port)
