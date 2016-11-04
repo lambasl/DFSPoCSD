@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+#@authors: Amardeep Singh and Satbeer Lamba
+
 import logging
 
 from collections import defaultdict

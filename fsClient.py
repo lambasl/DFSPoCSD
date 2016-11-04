@@ -1,31 +1,5 @@
 #!/usr/bin/env python
-"""
-Author: David Wolinsky
-Version: 0.03
-
-Description:
-The XmlRpc API for this library is:
-  get(base64 key)
-    Returns the value associated with the given key using a dictionary
-      or an empty dictionary if there is no matching key
-    Example usage:
-      rv = rpc.get(Binary("key"))
-      print rv => Binary
-      print rv.data => "value"
-  put(base64 key, base64 value)
-    Inserts the key / value pair into the hashtable, using the same key will
-      over-write existing values
-    Example usage:  rpc.put(Binary("key"), Binary("value"))
-  print_content()
-    Print the contents of the HT
-  read_file(string filename)
-    Store the contents of the Hahelperable into a file
-  write_file(string filename)
-    Load the contents of the file into the Hahelperable
-
-Changelog:
-    0.03 - Modified to remove timeout mechanism for data.
-"""
+#@authors: Amardeep Singh and Satbeer Lamba
 
 import sys, getopt, pickle, time, threading, xmlrpclib, logging
 from datetime import datetime, timedelta
