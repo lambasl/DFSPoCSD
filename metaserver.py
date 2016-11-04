@@ -104,9 +104,6 @@ class SimpleHT:
                                 st_atime=time(),files={})
         p['st_nlink'] += 1
         print("mkdir success")
-        #Below lines are not needed, handle creation in write function itself
-        # d, d1 = self.traverseparent(path, True)
-        # d[d1] = defaultdict(bytes)
 
     def open(self, path, flags):
         self.fd += 1
@@ -150,9 +147,10 @@ class SimpleHT:
     def rmdir(self, path):
         p, tar = self.traverseparent(path.data)
         if len(p['files'][tar]['files']) > 0:
-            raise FuseOSError(ENOTEMPTY)
+            return Binary('1')
         p['files'].pop(tar)
         p['st_nlink'] -= 1
+        return Binary('0')
 
     def setxattr(self, path, name, value, options, position=0):
         # Ignore options

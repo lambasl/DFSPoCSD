@@ -135,7 +135,8 @@ class Memory(LoggingMixIn, Operations):
       self.ms_helper.rename(Binary(old), Binary(new))
 
   def rmdir(self, path):
-      self.ms_helper.rmdir(Binary(path))
+      if(self.ms_helper.rmdir(Binary(path)).data == '1'):
+        raise FuseOSError(ENOTEMPTY)
 
   def setxattr(self, path, name, value, options, position=0):
       # Ignore options
