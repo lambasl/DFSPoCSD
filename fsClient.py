@@ -179,8 +179,8 @@ class Memory(LoggingMixIn, Operations):
       # p['files'].pop(tar)
       # d, d1 = self.traverseparent(path, True)
       # d[d1] = ['']
-      blocks = pickle.loads(self.ms_helper.unlink(Binary(path)))
       hash_val = pickle.loads(self.ms_helper.gethashVal(Binary(path)))
+      blocks = pickle.loads(self.ms_helper.unlink(Binary(path)))
       print('hash', hash_val)
       for b in blocks:
         block_num = b[len(hash_val):]
