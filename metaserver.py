@@ -8,6 +8,7 @@ from xmlrpclib import Binary
 from time import time
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 import random
+import hashlib
 
 MaxBLOCKSIZE=512
 
@@ -24,7 +25,14 @@ class SimpleHT:
         #  and 'files' if it is a directory) under each level
     def gethashVal(self, bin_path):
         path = bin_path.data
-        return pickle.dumps(str(self.traverse(path)['hash_val']))
+        print('path' , path)
+        return pickle.dumps(self.traverse(path)['hash_val'])
+
+    def hashVal(self, path):
+        '''
+        method to generate hash value on passing path
+        '''
+        return str(int(hashlib.md5(path).hexdigest()[:8],16))
 
     def traverse(self, path):
         """Traverses the dict of dict(self.files) to get pointer
@@ -57,10 +65,11 @@ class SimpleHT:
         p['st_gid'] = gid.data
 
     def create(self, path, mode):
+        hashv = self.hashVal(path.data)
         p, tar = self.traverseparent(path.data)
-        p['files'][tar] = dict(st_mode=(S_IFREG | int(mode.data)), st_nlink=1,
+        p['files'][tar] = dict(st_mode=(S_IFREG | int(mode.data)), stfacnk=1,
                      st_size=0, st_ctime=time(), st_mtime=time(),
-                     st_atime=time(), blocks=[])
+                     st_atime=time(), blocks=[], hash_val = hashv)
         self.fd += 1
         return self.fd
 
@@ -198,6 +207,7 @@ class SimpleHT:
         return pickle.dumps(blocks[num_blocks:])
 
     def unlink(self, path):
+        print(self.files)
         p, tar = self.traverseparent(path.data)
         print("Blocks = ",p['files'][tar]['blocks'])
         blocks = p['files'][tar]['blocks']
@@ -221,20 +231,18 @@ class SimpleHT:
         print(p)
         print(data)
         print(offset)
-    	#print("file_data",self.data)
+    	print("file_data",self.data)
     	file_size  = p['st_size']
         print('original file size:' + str(file_size))
-
+        hash_val = p['hash_val']
         blockIds = []
-        if('hash_val' not in p):
+        if(len(p['blocks']) == 0):
             #first time write
             print('file did not exist earlier, writing first time')
             data_size = data_size + offset
             num_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
-            rand = random.randint(100,100000)
-            p['hash_val'] = rand
             for i in range(0,num_blocks):
-                blockID = str(rand) + str(i)
+                blockID = hash_val + str(i)
                 blockIds.append(blockID)
             p['blocks'] = blockIds
             p['st_size'] = data_size
@@ -242,7 +250,6 @@ class SimpleHT:
             return pickle.dumps(blockIds)
         else:
             print('file already exists')
-            hash_val = p['hash_val']
             blockIds = p['blocks']
             if(offset > file_size):
                 #need to append the file with data
@@ -251,7 +258,7 @@ class SimpleHT:
                 data_size = (offset - file_size%MaxBLOCKSIZE) + data_size
                 num_new_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
                 for i in range(0, num_new_blocks):
-                    blockIds.append(str(hash_val) + str(last_block+i))
+                    blockIds.append(hash_val + str(last_block+i))
                 p['blocks'] = blockIds
                 p['st_size'] = data_size
                 return pickle.dumps(blockIds)
@@ -265,7 +272,7 @@ class SimpleHT:
                     extra_data = new_size - len(blockIds)*MaxBLOCKSIZE
                     num_new_blocks =  extra_data//MaxBLOCKSIZE if (extra_data % MaxBLOCKSIZE) == 0 else extra_data//MaxBLOCKSIZE +1
                     for i in range(0, num_new_blocks):
-                        blockIds.append(str(hash_val) + str(last_block+i))
+                        blockIds.append(hash_val + str(last_block+i))
                     p['blocks'] = blockIds
                     p['st_size'] = new_size
                     return pickle.dumps(blockIds)

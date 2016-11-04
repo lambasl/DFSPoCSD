@@ -95,7 +95,7 @@ class Memory(LoggingMixIn, Operations):
         return ""
       data = ''
       numDServers = len(self.ds_helpers)
-      hash_val = int(blocks[0][:len(blocks[0])-1])
+      hash_val = int(pickle.loads(self.ms_helper.gethashVal(Binary(path))))
       print hash_val
       i = 0
       for b in blocks:
@@ -206,10 +206,13 @@ class Memory(LoggingMixIn, Operations):
       # d, d1 = self.traverseparent(path, True)
       # d[d1] = ['']
       blocks = pickle.loads(self.ms_helper.unlink(Binary(path)))
-      for ds in self.ds_helpers:
-        for blk in blocks:
-          ds.delete(Binary(blk))
-      self.ds_helpers[0].get(Binary(blocks[0]))
+      hash_val = pickle.loads(self.ms_helper.gethashVal(Binary(path)))
+      print('hash', hash_val)
+      for b in blocks:
+        block_num = b[len(hash_val):]
+        server_id = (int(hash_val) + int(block_num))%numDServers
+        self.ds_helpers[server_id].delete(Binary(b))
+      print('deleted blocks:', blocks)
 
   def utimens(self, path, times = None):
       
@@ -217,13 +220,13 @@ class Memory(LoggingMixIn, Operations):
       self.ms_helper.utimens(Binary(path), times)
 
   def write(self, path, data, offset, fh):
-      #print("inside write")
+      print("inside write")
       blockIDs = pickle.loads(self.ms_helper.write(Binary(path), Binary(data), Binary(str(offset))))
-      #print(blockIDs)
-      #print(data)
-      #print(str(offset))
-      hash_val = int(blockIDs[0][:len(blockIDs[0])-1])
-      #print(hash_val)
+      print(blockIDs)
+      print(data)
+      print(str(offset))
+      hash_val = int(pickle.loads(self.ms_helper.gethashVal(Binary(path))))
+      print(hash_val)
       skip_blocks = offset//MaxBLOCKSIZE
 
       #we are returning all the blocks here and skipping the ones we dont need to overwite
@@ -231,8 +234,9 @@ class Memory(LoggingMixIn, Operations):
 
       #if offset is 0 nothing happens else same data nulls are written to the blocks as per case 
       for i in range(0, offset//MaxBLOCKSIZE):
-        #print("moving few data blocks")
+        print("moving few data blocks")
         server_id = (hash_val + i)%numDServers
+        print('server', server_id)
         self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
 
       up = (offset+len(data))//MaxBLOCKSIZE if ((offset+len(data))%MaxBLOCKSIZE) == 0 else (offset+len(data))//MaxBLOCKSIZE + 1
@@ -240,17 +244,18 @@ class Memory(LoggingMixIn, Operations):
       first_offset = 0 if offset%MaxBLOCKSIZE == 0 else offset%MaxBLOCKSIZE
       start = 0
       end = MaxBLOCKSIZE
-      #print("first offset:" + str(first_offset))
+      print("first offset:" + str(first_offset))
       for i in range(offset//MaxBLOCKSIZE, up):
         server_id = (hash_val + i)%numDServers
-        #print('iterator:' + str(i))
+        print('server', server_id)
+        print('iterator:' + str(i))
         if(first_offset == 0):
-          #print("start:" + str(start) + ",end:" + str(end))
+          print("start:" + str(start) + ",end:" + str(end))
           self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)))
         else:
           start = 0
           end = MaxBLOCKSIZE - first_offset
-          #print("start:" + str(start) + ",end:" + str(end))
+          print("start:" + str(start) + ",end:" + str(end))
           self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)))
           first_offset = 0
         start = end;
