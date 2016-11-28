@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from xmlrpclib import Binary
 import pickle
 import shelve #1
+import hashlib
 
 MaxBLOCKSIZE=512
 
@@ -60,20 +61,28 @@ class DataServerHT:
       self.putInternal(self.data, key, value, offset)
 
   def putInternal(self, dataObj, key, value, offset):
-    val = dataObj[key.data] if key.data in dataObj else ""
+    val = dataObj[key.data][0] if key.data in dataObj else ""
     offset = int(offset.data)
     if(offset <= len(val)):
-      dataObj[key.data] = val[:offset] + value.data
+      d = val[:offset] + value.data
+      checksum = self.getCheckSum(d)
+      dataObj[key.data] = [ d, checksum] 
       if(len(val) > offset + len(value.data)):
         #hold on there is still more data to be copied to the block
-        dataObj[key.data] = dataObj[key.data] + val[offset + len(value.data):]
+        d = dataObj[key.data][0] + val[offset + len(value.data):]
+        checksum = self.getCheckSum(d)
+        dataObj[key.data] = [ d, checksum]
     else:
       #time to add some nulls
       null_chars = "\x00"*(offset - len(val))
-      dataObj[key.data] = val + null_chars + value.data
+      d = val + null_chars + value.data
+      checksum = self.getCheckSum(d)
+      dataObj[key.data] = [ d, checksum]
     dataObj.sync()
 
-
+  def getCheckSum(self, d):
+      ho = hashlib.md5(d.encode())
+      return ho.hexdigest()
 
   def truncate(self, key, offset, isSec=False):
     '''
