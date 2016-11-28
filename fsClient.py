@@ -12,6 +12,7 @@ from errno import ENOENT, ENOTEMPTY
 from collections import defaultdict
 import hashlib
 import socket
+import time
 
 MaxBLOCKSIZE=512
 
@@ -209,7 +210,7 @@ class Memory(LoggingMixIn, Operations):
       delete_blocks = pickle.loads(self.ms_helper.truncate(Binary(path), Binary(str(length))))
       offset = length%MaxBLOCKSIZE
       for b in delete_blocks:
-        block_num = int(b[len(hash_val):])
+        block_num = int(b[len(hash_val)+1:])
         server_id = (int(hash_val) + block_num)%numDServers
         if(offset != 0):
           self.ds_helpers[server_id].truncate(Binary(b), Binary(offset))
@@ -244,17 +245,19 @@ class Memory(LoggingMixIn, Operations):
       hash_val = int(pickle.loads(self.ms_helper.gethashVal(Binary(path))))
       print(hash_val)
       skip_blocks = offset//MaxBLOCKSIZE
-
       #we are returning all the blocks here and skipping the ones we dont need to overwite
       #write data to blocks choosing servers in round robin fashion
 
-      #if offset is 0 nothing happens else same data nulls are written to the blocks as per case 
+      #if offset is 0 nothing happens else same data nulls are written to the blocks as per case
+ 
       for i in range(0, offset//MaxBLOCKSIZE):
         print("moving few data blocks")
         server_id = (hash_val + i)%numDServers
         print('server', server_id)
-        self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
-        self.ds_helpers[(server_id+1)%numDServers].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)), True)
+        self.blockPut(server_id, Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
+        self.blockPut((server_id+1)%numDServers, Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)), True)
+        #self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
+        #self.ds_helpers[(server_id+1)%numDServers].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)), True)
 
       up = (offset+len(data))//MaxBLOCKSIZE if ((offset+len(data))%MaxBLOCKSIZE) == 0 else (offset+len(data))//MaxBLOCKSIZE + 1
       k=0
@@ -268,20 +271,35 @@ class Memory(LoggingMixIn, Operations):
         print('iterator:' + str(i))
         if(first_offset == 0):
           print("start:" + str(start) + ",end:" + str(end))
-          self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)))
-          self.ds_helpers[(server_id+1)%numDServers].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)), True)
+          self.blockPut(server_id, Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)))
+          self.blockPut((server_id+1)%numDServers, Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)), True)
+          #self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)))
+          #self.ds_helpers[(server_id+1)%numDServers].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)), True)
         else:
           start = 0
           end = MaxBLOCKSIZE - first_offset
           print("start:" + str(start) + ",end:" + str(end))
-          self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)))
-          self.ds_helpers[(server_id+1)%numDServers].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)), True)
+          self.blockPut(server_id, Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)))
+          self.blockPut((server_id+1)%numDServers, Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)), True)
+          #self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)))
+          #self.ds_helpers[(server_id+1)%numDServers].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)), True)
           first_offset = 0
         start = end;
         end = start + MaxBLOCKSIZE
         k=k+1 
       return len(data)
 
+  def blockPut(self, server_id, key, val, offset, isSec=False):
+    flag = False
+    while(not flag):
+      try:
+        self.ds_helpers[server_id].put(key, val, offset, isSec)
+        flag = True
+      except Exception as e:
+        print('error while writing data to server:', server_id)
+        print(e)
+        time.sleep(5)
+        flag = False
 
 # Wrapper functions so the tests don't need to be concerned about Binary blobs
 class Helper:
