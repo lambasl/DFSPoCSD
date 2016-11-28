@@ -221,7 +221,7 @@ class SimpleHT:
             data_size = data_size + offset
             num_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
             for i in range(0,num_blocks):
-                blockID = hash_val + str(i)
+                blockID = hash_val + '_' + str(i)
                 blockIds.append(blockID)
             p['blocks'] = blockIds
             p['st_size'] = data_size
@@ -237,7 +237,7 @@ class SimpleHT:
                 data_size = (offset - file_size%MaxBLOCKSIZE) + data_size
                 num_new_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
                 for i in range(0, num_new_blocks):
-                    blockIds.append(hash_val + str(last_block+i))
+                    blockIds.append(hash_val + '_' + str(last_block+i))
                 p['blocks'] = blockIds
                 p['st_size'] = data_size
                 return pickle.dumps(blockIds)
@@ -251,7 +251,7 @@ class SimpleHT:
                     extra_data = new_size - len(blockIds)*MaxBLOCKSIZE
                     num_new_blocks =  extra_data//MaxBLOCKSIZE if (extra_data % MaxBLOCKSIZE) == 0 else extra_data//MaxBLOCKSIZE +1
                     for i in range(0, num_new_blocks):
-                        blockIds.append(hash_val + str(last_block+i))
+                        blockIds.append(hash_val + '_' + str(last_block+i))
                     p['blocks'] = blockIds
                     p['st_size'] = new_size
                     return pickle.dumps(blockIds)

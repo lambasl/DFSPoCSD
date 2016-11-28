@@ -205,6 +205,7 @@ class Memory(LoggingMixIn, Operations):
         server_id = (hash_val + i)%numDServers
         print('server', server_id)
         self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)))
+        self.ds_helpers[(server_id+1)%numDServers].put(Binary(str(blockIDs[i])), Binary(""), Binary(str(MaxBLOCKSIZE)), True)
 
       up = (offset+len(data))//MaxBLOCKSIZE if ((offset+len(data))%MaxBLOCKSIZE) == 0 else (offset+len(data))//MaxBLOCKSIZE + 1
       k=0
@@ -219,16 +220,17 @@ class Memory(LoggingMixIn, Operations):
         if(first_offset == 0):
           print("start:" + str(start) + ",end:" + str(end))
           self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)))
+          self.ds_helpers[(server_id+1)%numDServers].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(0)), True)
         else:
           start = 0
           end = MaxBLOCKSIZE - first_offset
           print("start:" + str(start) + ",end:" + str(end))
           self.ds_helpers[server_id].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)))
+          self.ds_helpers[(server_id+1)%numDServers].put(Binary(str(blockIDs[i])), Binary(data[start:end]), Binary(str(first_offset)), True)
           first_offset = 0
         start = end;
         end = start + MaxBLOCKSIZE
-        k=k+1
-
+        k=k+1 
       return len(data)
 
 
