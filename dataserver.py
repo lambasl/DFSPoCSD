@@ -81,7 +81,7 @@ class DataServerHT:
     dataObj.sync()
 
   def getCheckSum(self, d):
-      ho = hashlib.md5(d.encode())
+      ho = hashlib.md5(bytearray(d))
       return ho.hexdigest()
 
   def truncate(self, key, offset, isSec=False):

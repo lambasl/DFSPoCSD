@@ -10,6 +10,8 @@ from sys import argv, exit
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 from errno import ENOENT, ENOTEMPTY
 from collections import defaultdict
+import hashlib
+import socket
 
 MaxBLOCKSIZE=512
 
@@ -61,7 +63,21 @@ class Memory(LoggingMixIn, Operations):
       
       return pickle.loads(self.ms_helper.open(Binary(path), Binary(str(flags))))
 
+  def getCheckSum(self, d):
+      ho = hashlib.md5(bytearray(d))
+      return ho.hexdigest()
+
+  def verifyCheckSum(self, d):
+      if(d[1] == self.getCheckSum(d[0])):
+        return True
+      else:
+        return False
+
   def read(self, path, size, offset, fh):
+
+      #list of corrupt blocks
+      cpt_blks_s1 = []
+      cpt_blks_s2 = []
       print("read")
       blocks = pickle.loads(self.ms_helper.read(Binary(path), Binary(str(size)), Binary(str(offset))))
       print(blocks)
@@ -72,13 +88,46 @@ class Memory(LoggingMixIn, Operations):
       hash_val = int(pickle.loads(self.ms_helper.gethashVal(Binary(path))))
       print hash_val
       i = 0
+      d_2_append = ""
       for b in blocks:
         server_id = (hash_val+i)%numDServers
-        s = self.ds_helpers[server_id].get(Binary(str(b)))
-        dat = pickle.loads(s)
-        data = data + dat
-        i=i+1
+        try:
+          s = self.ds_helpers[server_id].get(Binary(str(b)))
+          dat_S1 = pickle.loads(s)
+          if(self.verifyCheckSum(dat_S1)):
+            d_2_append = dat_S1[0]
+          else:
+            cpt_blks_s1.append(str(b))
+        except socket.error as err:
+          print("Server with id {} is down!".format(server_id))
+        
 
+        try:
+          s = self.ds_helpers[(server_id+1)%numDServers].get(Binary(str(b)), True)
+          dat_S2 = pickle.loads(s)
+          if(self.verifyCheckSum(dat_S2)):
+            d_2_append = dat_S2[0]
+          else:
+            cpt_blks_s2.append(str(b))
+        except socket.error as err:
+          print("Server with id {} is down!".format((server_id+1)%numDServers))
+
+        
+        data = data + d_2_append
+        i=i+1
+      if(cpt_blks_s1):
+        for blk in cpt_blks_s1:
+          d_list = self.ds_helpers[(server_id+1)%numDServers].get(Binary(blk))
+          dat_S2 = pickle.loads(d_list)
+          self.ds_helpers[server_id].put(Binary(blk), Binary(dat_S2[0]), Binary(str(0)))
+
+      if(cpt_blks_s2):
+        for blk in cpt_blks_s1:
+          d_list = self.ds_helpers[server_id].get(Binary(blk))
+          dat_S1 = pickle.loads(d_list)
+          self.ds_helpers[server_id].put(Binary(blk), Binary(dat_S1[0]), Binary(str(0)))
+
+      
       print(data)
       return data[offset:]
       #   d = self.traverse(path, True)
