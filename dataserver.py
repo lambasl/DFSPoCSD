@@ -7,6 +7,7 @@ from xmlrpclib import Binary
 import pickle
 import shelve #1
 import hashlib
+import random
 
 MaxBLOCKSIZE=512
 
@@ -46,7 +47,7 @@ class DataServerHT:
       return pickle.dumps(dataObj[k])
     else:
       #raise ValueError("the block with key:" + str(key) + "was not found in Data Server")
-      #print("the block with key:" + str(key.data) + "was not found in Data Server")
+      print("the block with key:" + str(key.data) + "was not found in Data Server")
       return pickle.dumps("No Val")
 
   def put(self, key, value, offset, isSec=False):
@@ -59,6 +60,24 @@ class DataServerHT:
       self.putInternal(self.prevData, key, value, offset)
     else:
       self.putInternal(self.data, key, value, offset)
+
+  def corrupt(self, block_id):
+
+    print(self.data)
+    if block_id in self.data:
+      print("1")
+      list_data = list(self.data[block_id][0])
+      random.shuffle(list_data)
+      self.data[block_id][0] = ''.join(list_data)
+      print(self.data[block_id][0])
+
+    elif block_id in self.prevData:
+      print("1")
+      list_data = list(self.prevData[block_id][0])
+      random.shuffle(list_data)
+      self.prevData[block_id][0] = ''.join(list_data)
+      print(self.prevData[block_id][0])
+      #self.data[block_id][0] = str(int(self.data[block_id][0][0])-1) + self.data[block_id][0][1:]
 
   def putInternal(self, dataObj, key, value, offset):
     val = dataObj[key.data][0] if key.data in dataObj else ""
@@ -125,6 +144,7 @@ def serve(port):
   file_server.register_function(sht.put)
   file_server.register_function(sht.truncate)
   file_server.register_function(sht.delete)
+  file_server.register_function(sht.corrupt)
 
   print("Data Server Running")
   file_server.serve_forever()
