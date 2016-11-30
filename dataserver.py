@@ -46,7 +46,7 @@ class DataServerHT:
       return pickle.dumps(dataObj[k])
     else:
       #raise ValueError("the block with key:" + str(key) + "was not found in Data Server")
-      print("the block with key:" + str(key.data) + "was not found in Data Server")
+      #print("the block with key:" + str(key.data) + "was not found in Data Server")
       return pickle.dumps("No Val")
 
   def put(self, key, value, offset, isSec=False):

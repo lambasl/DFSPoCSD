@@ -28,7 +28,7 @@ class SimpleHT:
         #  and 'files' if it is a directory) under each level
     def gethashVal(self, bin_path):
         path = bin_path.data
-        print('path' , path)
+        #print('path' , path)
         return pickle.dumps(self.traverse(path)['hash_val'])
 
     def hashVal(self, path):
@@ -78,10 +78,11 @@ class SimpleHT:
 
     def getattr(self, path, fh = None):
         try:
+            #print('in meta getattr()')
             p = self.traverse(path.data)
         except KeyError:
             return pickle.dumps(-1)
-        print("returning attr")
+        #print("returning attr")
         return pickle.dumps({attr:p[attr] for attr in p.keys() if (attr != 'files' and attr != 'blocks')})
 
     def getxattr(self, path, name, position=0):
@@ -110,13 +111,13 @@ class SimpleHT:
         return pickle.dumps(self.fd)
 
     def read(self, bin_path, bin_size, bin_offset):
-        print("read")
+        #print("read")
         path = bin_path.data
         size = int(bin_size.data)
         offset = int(bin_offset.data)
         fp = self.traverse(path)
         retBlocks = fp['blocks']
-        print(retBlocks)
+        #print(retBlocks)
         return pickle.dumps(retBlocks)
 
     def readdir(self, path, fh):
@@ -171,7 +172,7 @@ class SimpleHT:
     def truncate(self, bin_path, bin_length, fh = None):
         length = int(bin_length.data)
         path = bin_path.data
-    	print("*** length = ", length)
+    	#print("*** length = ", length)
     	#print("file data = ",d)
         p = self.traverse(path)
         p['st_size'] = length
@@ -182,13 +183,13 @@ class SimpleHT:
         return pickle.dumps(blocks[num_blocks:])
 
     def unlink(self, path):
-        print(self.files)
+        #print(self.files)
         p, tar = self.traverseparent(path.data)
         #For symbolic links unlink is limited to metaserver, hence no need to return blocks
         if(p['files'][tar]['st_mode'] == (S_IFLNK | 0o777)):
             p['files'].pop(tar)
             return pickle.dumps("symlink")
-        print("Blocks = ",p['files'][tar]['blocks'])
+        #print("Blocks = ",p['files'][tar]['blocks'])
         blocks = p['files'][tar]['blocks']
         p['files'].pop(tar)
         return pickle.dumps(blocks)
@@ -207,17 +208,12 @@ class SimpleHT:
         data_size = len(data)
         p = self.traverse(path) #file pointer
         #d, d1 = self.traverseparent(path) #d = parent pointer, d1=filename
-        print(p)
-        print(data)
-        print(offset)
-    	print("file_data",self.data)
     	file_size  = p['st_size']
-        print('original file size:' + str(file_size))
         hash_val = p['hash_val']
         blockIds = []
         if(len(p['blocks']) == 0):
             #first time write
-            print('file did not exist earlier, writing first time')
+            #print('file did not exist earlier, writing first time')
             data_size = data_size + offset
             num_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
             for i in range(0,num_blocks):
@@ -225,14 +221,14 @@ class SimpleHT:
                 blockIds.append(blockID)
             p['blocks'] = blockIds
             p['st_size'] = data_size
-            print('num of blocks:' , len(blockIds))
+            #print('num of blocks:' , len(blockIds))
             return pickle.dumps(blockIds)
         else:
-            print('file already exists')
+            #print('file already exists')
             blockIds = p['blocks']
             if(offset > file_size):
                 #need to append the file with data
-                print('need to write beyond actual file size, here comes the /x00s')
+                #print('need to write beyond actual file size, here comes the /x00s')
                 last_block = len(blockIds)
                 data_size = (offset - file_size%MaxBLOCKSIZE) + data_size
                 num_new_blocks = data_size//MaxBLOCKSIZE if (data_size % MaxBLOCKSIZE) == 0 else data_size//MaxBLOCKSIZE +1
@@ -242,7 +238,7 @@ class SimpleHT:
                 p['st_size'] = data_size
                 return pickle.dumps(blockIds)
             else:
-                print('need to overwite some data in between')
+                #print('need to overwite some data in between')
                 edge_block = 0 if offset==0 else offset//MaxBLOCKSIZE
                 retain_blocks = blockIds[:edge_block]
                 if(file_size < offset + data_size):
@@ -260,18 +256,12 @@ class SimpleHT:
 
 
 def main():
-  optlist, args = getopt.getopt(sys.argv[1:], "", ["port="])
-  ol={}
-  for k,v in optlist:
-    ol[k] = v
-
-  port = 12345
-  if "--port" in ol:
-    port = int(ol["--port"])
-  serve(port)
+  
+  serve(int(sys.argv[1]))
 
 # Start the xmlrpc server
 def serve(port):
+  print('starting meta server on port:', port)
   file_server = SimpleXMLRPCServer.SimpleXMLRPCServer(('', port), allow_none = True)
   file_server.register_introspection_functions()
   sht = SimpleHT()
