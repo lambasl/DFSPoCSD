@@ -38,29 +38,34 @@ class DataServerHT:
     print("prev and next ports:", prev_port, next_port)
     prev_DS = xmlrpclib.Server("http://127.0.0.1:" + str(prev_port))
     next_DS = xmlrpclib.Server("http://127.0.0.1:" + str(next_port))
-    firstStart = False #wherther the server is being started first time
+    bothUp = False #wherther the server is being started first time
     try:
       next_DS.getDataBlocks()
-      firstStart = False
+      prev_DS.getDataBlocks()
+      bothUp = True
     except Exception as e:
       print('error connecting to next data server:')
       print(e)
-      firstStart = True
-    print('first start:', firstStart)
-    if(firstStart or os.path.exists(filename_this)):
+      bothUp = False
+    print('bothUp', bothUp)
+    if(os.path.exists(filename_this)):
+      #if file exists read from it
+      print('reading from file')
       self.data = shelve.open(filename_this, writeback = True)
-      if(firstStart):
-        self.data['own']={}
-        self.data['prev']={}
-        self.data.sync()
-      #self.prevData = shelve.open(filename_prev, writeback = True)
-    else:    
+    elif(bothUp):
+      #if file does not exists and both neighbours are up get data from neighbours
+      print('fetching from neighbours')
       self.data = shelve.open(filename_this, writeback=True)
       self.data['own'] = pickle.loads(next_DS.getDataBlocks(False))
       self.data['prev'] = pickle.loads(prev_DS.getDataBlocks(True))
       self.data.sync()
-      #self.prevData = pickle.loads(prev_DS.getDataBlocks(True))
-      #self.prevData.sync()
+    else:
+      #create a new file
+      print('creating new file')
+      self.data = shelve.open(filename_this, writeback = True)
+      self.data['own']={}
+      self.data['prev']={}
+      self.data.sync()
     print(self.data)
 
   def getDataBlocks(self, getOwn=True):
