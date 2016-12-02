@@ -128,9 +128,9 @@ class Memory(LoggingMixIn, Operations):
           dat_S1 = pickle.loads(d_list)
           self.ds_helpers[(server_id+1)%numDServers].put(Binary(blk), Binary(dat_S1[0]), Binary(str(0)), True)
 
-      
+      offset = offset % MaxBLOCKSIZE
       print(data)
-      return data[offset:]
+      return data[offset: offset+size]
       #   d = self.traverse(path, True)
       #   #case: offset > filesize
       #   if((offset//MaxBLOCKSIZE + 1) > len(d)):

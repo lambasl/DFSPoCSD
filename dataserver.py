@@ -78,7 +78,7 @@ class DataServerHT:
     '''
 
     '''
-    print(self.data)
+    #print(self.data)
     if(isSec):
       return self.getInternal(self.data['prev'], key)
     else:
@@ -90,7 +90,7 @@ class DataServerHT:
       return pickle.dumps(dataObj[k])
     else:
       #raise ValueError("the block with key:" + str(key) + "was not found in Data Server")
-      print("the block with key:" + str(key.data) + "was not found in Data Server")
+      #print("the block with key:" + str(key.data) + "was not found in Data Server")
       return pickle.dumps("No Val")
 
   def put(self, key, value, offset, isSec=False):
@@ -105,18 +105,18 @@ class DataServerHT:
       self.putInternal(self.data['own'], key, value, offset)
     self.data.sync()
 
-  def corrupt(self, block_id):
+  def corrupt(self, block_id, filename):
 
     print(self.data)
     if block_id in self.data['own']:
-      print("1")
+      print("File corrupted: "+ filename + " Block Id : " + block_id)
       list_data = list(self.data['own'][block_id][0])
       random.shuffle(list_data)
       self.data['own'][block_id][0] = ''.join(list_data)
       print(self.data['own'][block_id][0])
 
     elif block_id in self.data['prev']:
-      print("1")
+      print("File corrupted: "+ filename + " Block Id : " + block_id)
       list_data = list(self.data['prev'][block_id][0])
       random.shuffle(list_data)
       self.data['prev'][block_id][0] = ''.join(list_data)

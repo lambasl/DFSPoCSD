@@ -28,7 +28,7 @@ class SimpleHT:
         #  and 'files' if it is a directory) under each level
     def gethashVal(self, bin_path):
         path = bin_path.data
-        print('path' , path)
+        #print('path' , path)
         return pickle.dumps(self.traverse(path)['hash_val'])
 
     def hashVal(self, path):
@@ -81,7 +81,7 @@ class SimpleHT:
             p = self.traverse(path.data)
         except KeyError:
             return pickle.dumps(-1)
-        print("returning attr")
+        #print("returning attr")
         return pickle.dumps({attr:p[attr] for attr in p.keys() if (attr != 'files' and attr != 'blocks')})
 
     def getxattr(self, path, name, position=0):
@@ -110,13 +110,15 @@ class SimpleHT:
         return pickle.dumps(self.fd)
 
     def read(self, bin_path, bin_size, bin_offset):
-        print("read")
+        #print("read")
         path = bin_path.data
         size = int(bin_size.data)
         offset = int(bin_offset.data)
         fp = self.traverse(path)
-        retBlocks = fp['blocks']
-        print(retBlocks)
+        start_blk = offset//MaxBLOCKSIZE
+        last_block = (offset + size)//MaxBLOCKSIZE
+        retBlocks = fp['blocks'][start_blk : last_block+1]
+        #print(retBlocks)
         return pickle.dumps(retBlocks)
 
     def readdir(self, path, fh):
@@ -171,7 +173,7 @@ class SimpleHT:
     def truncate(self, bin_path, bin_length, fh = None):
         length = int(bin_length.data)
         path = bin_path.data
-    	print("*** length = ", length)
+    	#print("*** length = ", length)
     	#print("file data = ",d)
         p = self.traverse(path)
         p['st_size'] = length
@@ -182,13 +184,13 @@ class SimpleHT:
         return pickle.dumps(blocks[num_blocks:])
 
     def unlink(self, path):
-        print(self.files)
+        #print(self.files)
         p, tar = self.traverseparent(path.data)
         #For symbolic links unlink is limited to metaserver, hence no need to return blocks
         if(p['files'][tar]['st_mode'] == (S_IFLNK | 0o777)):
             p['files'].pop(tar)
             return pickle.dumps("symlink")
-        print("Blocks = ",p['files'][tar]['blocks'])
+        #print("Blocks = ",p['files'][tar]['blocks'])
         blocks = p['files'][tar]['blocks']
         p['files'].pop(tar)
         return pickle.dumps(blocks)
