@@ -1,19 +1,21 @@
 import xmlrpclib
 import sys
 import hashlib
+from xmlrpclib import Binary
 
-def hashVal(path):
-        '''
-        method to generate hash value on passing path
-        '''
-        return str(int(hashlib.md5(path).hexdigest()[:8],16))
-
-ds_ports = sys.argv[1:-1]
-for ds_port in ds_ports:
-	server_url = "http://127.0.0.1:" + str(ds_port)
-  	#ms_helper = Helper(xmlrpclib.Server(server_url))
-	ds_helper = xmlrpclib.Server(server_url)
-	filename = str(sys.argv[-1])
-	block_id = hashVal(filename) + "_0"
-	print(block_id)
-	ds_helper.corrupt(str(block_id), filename)
+ms_port = sys.argv[1]
+server_url = "http://127.0.0.1:" + str(ms_port)
+ms_helper = xmlrpclib.Server(server_url)
+filepath = str(sys.argv[-1])
+print(filepath)
+blk_id = ms_helper.getDataBlocksIDs(Binary(filepath))
+if(not(blk_id == False)):
+	ds_ports = sys.argv[2:-1]
+	for ds_port in ds_ports:
+		server_url = "http://127.0.0.1:" + str(ds_port)
+	  	#ms_helper = Helper(xmlrpclib.Server(server_url))
+		ds_helper = xmlrpclib.Server(server_url)
+		if(ds_helper.corrupt(str(blk_id))):
+			print("Corrupted block {} on server with port {}".format(filepath, ds_port))
+else:
+	print("Block id not found")

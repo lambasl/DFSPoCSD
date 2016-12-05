@@ -105,22 +105,26 @@ class DataServerHT:
       self.putInternal(self.data['own'], key, value, offset)
     self.data.sync()
 
-  def corrupt(self, block_id, filename):
+  def corrupt(self, block_id):
 
-    print(self.data)
+    #print(self.data)
+    filepath = block_id.split('@')[1]
+    block_id = block_id.split('@')[0]
     if block_id in self.data['own']:
-      print("File corrupted: "+ filename + " Block Id : " + block_id)
+      print("Path of corrupted file: "+ filepath + " Block Id : " + block_id)
       list_data = list(self.data['own'][block_id][0])
       random.shuffle(list_data)
       self.data['own'][block_id][0] = ''.join(list_data)
       print(self.data['own'][block_id][0])
+      return True
 
     elif block_id in self.data['prev']:
-      print("File corrupted: "+ filename + " Block Id : " + block_id)
+      print("Path of corrupted file"+ filepath + " Block Id : " + block_id)
       list_data = list(self.data['prev'][block_id][0])
       random.shuffle(list_data)
       self.data['prev'][block_id][0] = ''.join(list_data)
       print(self.data['prev'][block_id][0])
+      return True
       #self.data[block_id][0] = str(int(self.data[block_id][0][0])-1) + self.data[block_id][0][1:]
 
   def putInternal(self, dataObj, key, value, offset):

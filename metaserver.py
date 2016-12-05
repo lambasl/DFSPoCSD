@@ -116,16 +116,25 @@ class SimpleHT:
         offset = int(bin_offset.data)
         fp = self.traverse(path)
         retBlocks = fp['blocks']
+        start_blk = offset//MaxBLOCKSIZE
+        last_blk = (offset+size)//MaxBLOCKSIZE
+        print("first and last blocks are: {} {}".format(start_blk, last_blk))
+        retBlocks = retBlocks[start_blk : last_blk+1]
         print(retBlocks)
         return pickle.dumps(retBlocks)
+
 
     def getDataBlocksIDs(self, path):
         '''
         returns a list of blockIDs for the file
         '''
-        fp = self.traverse(path.data)
-        retBlocks = fp['blocks']
-        return pickle.dumps(retBlocks)
+        try:
+            fp = self.traverse(path.data)
+        except KeyError:
+            return False
+        retBlock = fp['blocks'][0] + "@" + path.data
+        #return pickle.dumps(retBlock)
+        return retBlock
 
 
     def readdir(self, path, fh):
